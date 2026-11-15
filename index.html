@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>逐行输出动画生成器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230b0f0d'/%3E%3Ctext x='32' y='44' font-family='monospace' font-size='30' fill='%2356d364' text-anchor='middle'%3E%26gt;_%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0b0f0d; --panel:#101613; --line:#1f2b24; --line2:#2b3d32;
+  --fg:#d8e6dc; --dim:#7fb08f; --grn:#56d364; --warm:#e0b464; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Segoe UI","Noto Sans SC",sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:22px 20px 40px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:22px;letter-spacing:.5px}
+h1 span{color:var(--grn)}
+.sub{margin:4px 0 0;color:var(--dim);font-size:13px}
+.rec-badge{font:12px var(--mono);color:var(--dim);border:1px solid var(--line2);padding:5px 9px;border-radius:4px}
+.grid{display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px;margin-top:18px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--dim);letter-spacing:.6px;text-transform:uppercase}
+.body{padding:14px}
+.field{margin-bottom:13px}
+.field>label{display:block;font-size:13px;color:var(--dim);margin-bottom:6px}
+.row{display:flex;gap:8px;align-items:center}
+input[type=number],input[type=text],select{
+  background:#0c1410;border:1px solid var(--line2);color:var(--fg);border-radius:5px;
+  padding:8px 10px;font:14px var(--mono);min-width:0;width:100%
+}
+input[type=number]{width:110px}
+select{width:auto;padding-right:6px}
+input:focus,select:focus{outline:none;border-color:var(--grn)}
+.seg{display:flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{flex:1;text-align:center;padding:7px 6px;font:13px var(--mono);color:var(--dim);cursor:pointer;background:#0c1410;border-right:1px solid var(--line2)}
+.seg label:last-child{border-right:0}
+.seg input:checked+label{background:#16291e;color:var(--grn)}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim);cursor:pointer;user-select:none}
+.chk input{appearance:none;width:16px;height:16px;border:1px solid var(--line2);border-radius:3px;background:#0c1410;position:relative;cursor:pointer;flex:none}
+.chk input:checked{border-color:var(--grn)}
+.chk input:checked::after{content:"";position:absolute;inset:3px;background:var(--grn);border-radius:2px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+button{
+  font:13px var(--mono);padding:9px 10px;border-radius:5px;cursor:pointer;
+  border:1px solid var(--line2);background:#131c17;color:var(--fg);transition:.12s
+}
+button:hover:not(:disabled){border-color:var(--grn);color:var(--grn)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:#16291e;border-color:#2f5c3e;color:var(--grn)}
+button.stop{border-color:#5a2b2b;color:#e08b8b;background:#1b1212}
+.term{background:#080b09;border-radius:0 0 8px 8px;padding:16px 16px 12px;min-height:430px;display:flex;flex-direction:column}
+.term .cmd{font:15px var(--mono);color:var(--dim)}
+.term .cmd b{color:#fff;font-weight:500}
+#log{flex:1;font:15px/1.85 var(--mono);margin-top:8px;overflow:auto;max-height:360px}
+#log div{white-space:pre-wrap;word-break:break-word}
+#log .ts{color:#4d7c5c}
+#log .tp{color:var(--warm);font-weight:600}
+.term-foot{display:flex;align-items:center;gap:8px;font:13px var(--mono);color:var(--dim);border-top:1px solid #16211b;padding-top:10px;margin-top:8px}
+.cursor{width:8px;height:15px;background:var(--grn);display:inline-block;animation:bl .9s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+.timer{margin-left:auto;font:700 20px var(--mono);color:var(--grn);letter-spacing:.5px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);border-radius:5px;padding:7px 10px;background:#0c1410;font:12px var(--mono);color:var(--dim)}
+.chip b{color:var(--fg);font-weight:600;margin-left:6px}
+.chip b.grn{color:var(--grn)}
+pre.code{margin:0;padding:14px;overflow:auto;background:#080b09;border-radius:0 0 8px 8px;font:13px/1.7 var(--mono);color:#cfe6d6;max-height:460px}
+pre.code .kw{color:#c792ea}
+pre.code .num{color:#e0b464}
+pre.code .str{color:#9edc8f}
+pre.code .cm{color:#4d7c5c}
+.canvas-wrap{padding:14px}
+canvas{width:100%;max-width:960px;display:block;border:1px solid var(--line);border-radius:6px;background:#080b09}
+.out-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;font:12px var(--mono);color:var(--dim)}
+.out-row a{color:var(--grn);text-decoration:none;border-bottom:1px dotted var(--grn)}
+video{width:100%;max-width:520px;border-radius:6px;border:1px solid var(--line);background:#000;display:none;margin-top:12px}
+.note{font-size:12px;color:var(--dim);margin:8px 0 0;line-height:1.65}
+hr.sep{border:0;border-top:1px solid var(--line);margin:14px 0}
+@media (max-width:900px){
+  .grid{grid-template-columns:1fr}
+  .term{min-height:320px}
+  #log{max-height:260px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>逐行输出动画<span>生成器</span></h1>
+      <p class="sub">设定次数与延迟，实时预览逐行输出；同步导出 C++ 源码与视频动画。</p>
+    </div>
+    <div class="rec-badge" id="badge">READY · 未运行</div>
+  </header>
+
+  <div class="grid">
+    <!-- ===== 参数 ===== -->
+    <section class="panel">
+      <div class="panel-h"><span>参数</span><span id="modeTag">循环</span></div>
+      <div class="body">
+        <div class="field">
+          <label>输出遍数（行数）</label>
+          <div class="row">
+            <input type="number" id="count" value="10" min="1" max="5000" step="1">
+            <label class="chk"><input type="checkbox" id="inf"> 无限</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>单行延迟</label>
+          <div class="row">
+            <input type="number" id="delay" value="0.5" min="0.001" step="0.1">
+            <select id="unit">
+              <option value="ms">毫秒</option>
+              <option value="s" selected>秒</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>计时显示</label>
+          <div class="seg">
+            <input type="radio" name="clock" id="ck1" value="up" checked><label for="ck1">正计时</label>
+            <input type="radio" name="clock" id="ck2" value="down"><label for="ck2">倒计时</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>数值顺序</label>
+          <div class="seg">
+            <input type="radio" name="dir" id="d1" value="up" checked><label for="d1">递增 1 → N</label>
+            <input type="radio" name="dir" id="d2" value="down"><label for="d2">递减 N → 1</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>后缀文字（输出形如 1.re）</label>
+          <input type="text" id="suffix" value="re" maxlength="16" placeholder="re">
+        </div>
+
+        <hr class="sep">
+
+        <div class="field" style="margin-bottom:10px">
+          <label class="chk"><input type="checkbox" id="record" checked> 运行同时录制视频</label>
+        </div>
+
+        <div class="btns">
+          <button class="primary" id="start">开始运行</button>
+          <button class="stop" id="stop" disabled>停止</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 终端 ===== -->
+    <section class="panel">
+      <div class="panel-h"><span>实况预览</span><span id="runTag">cpp-run</span></div>
+      <div class="term">
+        <div class="cmd">$ <b>./run</b></div>
+        <div id="log"></div>
+        <div class="term-foot">
+          <span class="cursor"></span>
+          <span id="cnt">等待开始</span>
+          <span class="timer" id="timer">0.000 s</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== 计算 ===== -->
+  <section class="panel" style="margin-top:16px">
+    <div class="panel-h"><span>计算</span><span>实时推算</span></div>
+    <div class="body">
+      <div class="chips">
+        <div class="chip">总行数<b id="cLines">10</b></div>
+        <div class="chip">单行间隔<b id="cGap">500 ms</b></div>
+        <div class="chip">第一行出现<b id="cFirst">0.500 s</b></div>
+        <div class="chip">末行出现<b id="cLast">5.000 s</b></div>
+        <div class="chip">总耗时<b class="grn" id="cTotal">5.000 s</b></div>
+        <div class="chip">每秒行数<b id="cRate">2.0</b></div>
+        <div class="chip">模拟 usleep<b id="cUs">500000</b></div>
+      </div>
+      <p class="note" id="calcNote">总耗时 = 行数 × 单行延迟；末行出现时刻 = 总耗时，因为 usleep 写在循环开头，第一行也要先等一个间隔。</p>
+    </div>
+  </section>
+
+  <!-- ===== 源码 ===== -->
+  <section class="panel" style="margin-top:16px">
+    <div class="panel-h"><span>C++ 源码</span>
+      <span style="display:flex;gap:8px">
+        <button id="copy" style="padding:4px 10px;font-size:12px">复制</button>
+        <button id="dlcpp" style="padding:4px 10px;font-size:12px">下载 .cpp</button>
+      </span>
+    </div>
+    <pre class="code" id="code"></pre>
+  </section>
+
+  <!-- ===== 视频 ===== -->
+  <section class="panel" style="margin-top:16px">
+    <div class="panel-h"><span>视频动画</span><span id="recTag">未录制</span></div>
+    <div class="canvas-wrap">
+      <canvas id="cv" width="1280" height="720"></canvas>
+      <div class="out-row">
+        <span id="recInfo">开跑时自动录制，结束自动保存为 WebM。</span>
+        <a id="dlvid" style="display:none">下载视频</a>
+      </div>
+      <video id="preview" controls></video>
+      <p class="note">视频按真实时间轴录制（MediaRecorder 抓取画布，30 fps），所以 0.5 秒的间隔在成片里就是 0.5 秒。WebM 用浏览器或 PotPlayer 播放；要 MP4 可用转码工具再转一次。</p>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ===== 状态与工具 ===== */
+const $ = id => document.getElementById(id);
+let running = false, stopFlag = false, recorder = null, chunks = [], lines = [], t0 = 0, lastBlobUrl = null;
+
+const sleep = ms => new Promise(r => setTimeout(r, Math.max(0, ms)));
+
+function cfg(){
+  const unit = $('unit').value;
+  const d = parseFloat($('delay').value) || 0;
+  const delayMs = unit === 's' ? d * 1000 : d;
+  return {
+    count: Math.max(1, Math.min(5000, parseInt($('count').value) || 1)),
+    inf: $('inf').checked,
+    delayMs: Math.max(1, Math.round(delayMs)),
+    delayRaw: d, unit,
+    clock: document.querySelector('input[name=clock]:checked').value,
+    dir: document.querySelector('input[name=dir]:checked').value,
+    suffix: $('suffix').value.replace(/[\r\n"]/g, '') || '',
+    record: $('record').checked
+  };
+}
+
+const sec = ms => (ms / 1000).toFixed(3) + ' s';
+
+/* ===== 计算 ===== */
+function updateCalc(){
+  if ($('inf').checked && $('d2').checked) $('d1').checked = true;
+  const c = cfg();
+  const lines_ = c.inf ? Infinity : c.count;
+  const total = c.delayMs * (c.inf ? 0 : c.count);
+  $('cLines').textContent = c.inf ? '∞' : c.count;
+  $('cGap').textContent = c.delayMs + ' ms';
+  $('cFirst').textContent = sec(c.delayMs);
+  $('cLast').textContent = c.inf ? '持续输出' : sec(total);
+  $('cTotal').textContent = c.inf ? '不限' : sec(total);
+  $('cRate').textContent = c.delayMs > 0 ? (1000 / c.delayMs).toFixed(2) : '—';
+  $('cUs').textContent = String(c.delayMs * 1000);
+  $('calcNote').textContent = c.inf
+    ? '无限模式下不会自己停，需要手动按「停止」；视频最长录 60 秒自动收尾。'
+    : '总耗时 = 行数 × 单行延迟；末行出现时刻 = 总耗时，因为 usleep 写在循环开头，第一行也要先等一个间隔。';
+  $('modeTag').textContent = c.inf ? '无限' : '循环 ' + c.count + ' 行';
+  $('runTag').textContent = c.inf ? 'cpp-run · ∞' : 'cpp-run · ' + c.count + ' 行';
+  $('count').disabled = c.inf;
+  updateCode(c);
+}
+
+/* ===== 源码生成 ===== */
+function genCode(c){
+  const us = c.delayMs * 1000;
+  const lines_ = [];
+  lines_.push('#include <iostream>');
+  lines_.push('#include <cstdio>');
+  lines_.push('#include <string>');
+  lines_.push('#include <unistd.h>');
+  lines_.push('using namespace std;');
+  lines_.push('');
+  lines_.push('int main() {');
+  lines_.push('    string suffix = "' + c.suffix + '";');
+  if (c.inf) {
+    lines_.push('    int a = 1;');
+    lines_.push('    while (true) {');
+    lines_.push('        usleep(' + us + ');   // ' + c.delayRaw + ' ' + c.unit + ' = ' + us + ' 微秒');
+    lines_.push('        printf("%d.%s\\n", a, suffix.c_str());');
+    lines_.push('        a++;');
+    lines_.push('    }');
+    lines_.push('    return 0;');
+  } else if (c.dir === 'up') {
+    lines_.push('    for (int a = 1; a <= ' + c.count + '; a++) {');
+    lines_.push('        usleep(' + us + ');   // ' + c.delayRaw + ' ' + c.unit + ' = ' + us + ' 微秒');
+    lines_.push('        printf("%d.%s\\n", a, suffix.c_str());');
+    lines_.push('    }');
+    lines_.push('    return 0;');
+  } else {
+    lines_.push('    for (int a = ' + c.count + '; a >= 1; a--) {');
+    lines_.push('        usleep(' + us + ');   // ' + c.delayRaw + ' ' + c.unit + ' = ' + us + ' 微秒');
+    lines_.push('        printf("%d.%s\\n", a, suffix.c_str());');
+    lines_.push('    }');
+    lines_.push('    return 0;');
+  }
+  lines_.push('}');
+  return lines_.join('\n');
+}
+
+function updateCode(c){
+  $('code').textContent = genCode(c || cfg());
+}
+
+/* ===== 终端渲染 ===== */
+function addLine(elapsedMs, text){
+  const d = document.createElement('div');
+  d.innerHTML = '<span class="ts">[' + (elapsedMs / 1000).toFixed(2) + 's]</span>  ' + escapeHtml(text);
+  $('log').appendChild(d);
+  $('log').scrollTop = $('log').scrollHeight;
+  $('cnt').textContent = '已输出 ' + lines.length + ' 行';
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+}
+
+/* ===== 计时 ===== */
+function timerText(c, elapsed, done){
+  if (done){
+    if (c.inf) return (elapsed / 1000).toFixed(3) + ' s';
+    return c.clock === 'down' ? '0.000 s' : (elapsed / 1000).toFixed(3) + ' s';
+  }
+  if (c.inf) return (elapsed / 1000).toFixed(3) + ' s';
+  if (c.clock === 'up') return (elapsed / 1000).toFixed(3) + ' s';
+  const total = c.delayMs * c.count;
+  return Math.max(0, (total - elapsed) / 1000).toFixed(3) + ' s';
+}
+
+/* ===== 画布 ===== */
+function draw(c, elapsed, done){
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.fillStyle = '#080b09'; ctx.fillRect(0, 0, W, H);
+
+  // 顶栏
+  ctx.fillStyle = '#16211b'; ctx.fillRect(0, 0, W, 50);
+  ctx.fillStyle = '#56d364'; ctx.beginPath(); ctx.arc(24, 25, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#7fb08f'; ctx.font = '16px ui-monospace, Menlo, Consolas, monospace';
+  ctx.fillText('cpp-run · usleep(' + (c.delayMs * 1000) + ') · 每行 ' + c.delayRaw + ' ' + c.unit, 42, 31);
+
+  // 命令行
+  ctx.fillStyle = '#7fb08f'; ctx.font = '17px ui-monospace, Menlo, Consolas, monospace';
+  ctx.fillText('$ ', 30, 86);
+  ctx.fillStyle = '#ffffff'; ctx.fillText('./run', 52, 86);
+
+  // 输出行（最近 12 行）
+  const shown = lines.slice(-12);
+  const lh = 31, top = 122;
+  ctx.font = '18px ui-monospace, Menlo, Consolas, monospace';
+  shown.forEach((ln, i) => {
+    const y = top + i * lh;
+    if (y > H - 90) return;
+    ctx.fillStyle = '#4d7c5c';
+    ctx.fillText('[' + (ln.t / 1000).toFixed(2) + 's]', 30, y);
+    ctx.fillStyle = '#c8f7d2';
+    ctx.fillText(ln.text, 118, y);
+  });
+  if (lines.length > 12) {
+    ctx.fillStyle = '#4d7c5c'; ctx.fillText('… 前 ' + (lines.length - 12) + ' 行已滚动', 30, H - 70);
+  }
+
+  // 底部状态
+  ctx.fillStyle = '#16211b'; ctx.fillRect(0, H - 56, W, 56);
+  ctx.fillStyle = done ? '#e0b464' : '#56d364';
+  ctx.fillRect(30, H - 32, 10, 10);
+  ctx.fillStyle = '#7fb08f'; ctx.font = '15px ui-monospace, Menlo, Consolas, monospace';
+  ctx.fillText(done ? '程序结束 · 共 ' + lines.length + ' 行' : '已输出 ' + lines.length + ' 行', 50, H - 22);
+  ctx.fillStyle = '#56d364'; ctx.font = 'bold 22px ui-monospace, Menlo, Consolas, monospace';
+  const tt = timerText(c, elapsed, done);
+  const tw = ctx.measureText(tt).width;
+  ctx.fillText(tt, W - 30 - tw, H - 20);
+}
+
+/* ===== 录制 ===== */
+function startRecorder(){
+  const cv = $('cv');
+  if (!cv.captureStream || !window.MediaRecorder) return false;
+  const stream = cv.captureStream(30);
+  const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mt = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+  chunks = [];
+  recorder = new MediaRecorder(stream, mt ? { mimeType: mt, videoBitsPerSecond: 2500000 } : undefined);
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+    lastBlobUrl = URL.createObjectURL(blob);
+    const a = $('dlvid');
+    a.href = lastBlobUrl;
+    a.download = '逐行输出-' + lines.length + '行.webm';
+    a.style.display = 'inline';
+    $('recInfo').textContent = '已录制 ' + lines.length + ' 行 · ' + (blob.size / 1048576).toFixed(2) + ' MB · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' 秒';
+    $('recTag').textContent = '已生成';
+    const v = $('preview'); v.src = lastBlobUrl; v.style.display = 'block';
+  };
+  recorder.start(1000);
+  $('recTag').textContent = '录制中';
+  return true;
+}
+
+/* ===== 运行 ===== */
+async function start(){
+  if (running) return;
+  const c = cfg();
+  running = true; stopFlag = false;
+  lines = []; $('log').textContent = ''; $('cnt').textContent = '已输出 0 行';
+  $('timer').textContent = timerText(c, 0, false);
+  $('start').disabled = true; $('stop').disabled = false;
+  $('badge').textContent = 'RUNNING · 运行中';
+  $('dlvid').style.display = 'none'; $('preview').style.display = 'none';
+
+  t0 = performance.now();
+  const recording = c.record && startRecorder();
+  const maxMs = c.inf ? 60000 : Infinity;
+  let i = 0;
+
+  const frame = () => {
+    const el = performance.now() - t0;
+    $('timer').textContent = timerText(c, el, !running && !c.inf);
+    draw(c, el, !running);
+    if (running) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+
+  const total = c.inf ? Infinity : c.count;
+  while (i < total && !stopFlag){
+    const deadline = t0 + (i + 1) * c.delayMs;
+    await sleep(deadline - performance.now());
+    if (stopFlag) break;
+    if (c.inf && performance.now() - t0 > maxMs) { stopFlag = true; break; }
+    const a = c.dir === 'down' && !c.inf ? (c.count - i) : (i + 1);
+    const text = a + '.' + c.suffix;
+    lines.push({ t: performance.now() - t0, text });
+    addLine(lines[lines.length - 1].t, text);
+    i++;
+  }
+
+  running = false;
+  $('start').disabled = false; $('stop').disabled = true;
+  $('badge').textContent = 'DONE · 已结束';
+  $('timer').textContent = c.clock === 'down' && !c.inf ? '0.000 s' : timerText(c, performance.now() - t0, true);
+  draw(c, performance.now() - t0, true);
+  $('cnt').textContent = '程序结束 · 共 ' + lines.length + ' 行';
+  if (recording && recorder && recorder.state === 'recording') {
+    setTimeout(() => recorder.stop(), 300);
+  } else {
+    $('recTag').textContent = '未录制';
+  }
+}
+
+function stop(){
+  if (!running) return;
+  stopFlag = true;
+  $('badge').textContent = 'STOPPED · 已停止';
+}
+
+/* ===== 事件 ===== */
+['count','delay','unit','suffix','inf','record'].forEach(id => {
+  $(id).addEventListener('input', updateCalc);
+  $(id).addEventListener('change', updateCalc);
+});
+document.querySelectorAll('input[name=clock],input[name=dir]').forEach(r => r.addEventListener('change', updateCalc));
+
+$('start').addEventListener('click', start);
+$('stop').addEventListener('click', stop);
+
+$('copy').addEventListener('click', async () => {
+  const t = $('code').textContent;
+  try { await navigator.clipboard.writeText(t); $('copy').textContent = '已复制'; setTimeout(() => $('copy').textContent = '复制', 1200); }
+  catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); $('copy').textContent = '已复制'; setTimeout(() => $('copy').textContent = '复制', 1200); }
+});
+
+$('dlcpp').addEventListener('click', () => {
+  const blob = new Blob([$('code').textContent], { type: 'text/x-c++src' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'main.cpp'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+});
+
+/* ===== 初始化 ===== */
+updateCalc();
+draw(cfg(), 0, false);
+</script>
+</body>
+</html>
